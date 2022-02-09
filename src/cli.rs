@@ -1,10 +1,10 @@
 use ades::cli::TimeUnit;
 use clap::Parser;
 
-/// A CLI tool for compressing and encrypting a directory. (tar, lzma, aes & des)
+/// A CLI tool for compressing and encrypting a file or directory. (tar, lzma, aes & des)
 
 #[derive(Parser)]
-#[clap(version = "0.1.0", author = "hzqd <hzqelf@yeah.net>")]
+#[clap(version = "0.1.1", author = "hzqd <hzqelf@yeah.net>")]
 pub struct Args {
     /// Specify the input file name
     #[clap(short, long)]
@@ -28,19 +28,22 @@ pub struct Args {
 
     /// Set to "compress and encrypt" or "decrypt_and_decompress"
     #[clap(subcommand)]
-    pub subcmd: CompressAndEncrypt,
+    pub subcmd: Mode,
 }
 
 #[derive(Parser)]
-pub enum CompressAndEncrypt {
-    /// A subcommand for specify the mode to "decrypt and decompress" or "compress and encrypt" by -c
-    M(Mode),
+pub enum Mode {
+    /// A subcommand for specify the mode to File, and "decrypt & decompress" by default or "compress & encrypt" by -c
+    F(CAE),
+    /// A subcommand for specify the mode to Dir, and "decrypt & decompress" by default or "compress & encrypt" by -c
+    D(CAE),
 }
 
 #[derive(Parser)]
-pub struct Mode {
+pub struct CAE {
+    /// Specify the mode to "compress and encrypt"
     #[clap(short, long)]
-    pub compress_and_encrypt: bool
+    pub cae: bool,
 }
 
 pub fn get_args() -> Args {
