@@ -46,21 +46,20 @@ pub fn compress_and_encrypt(r#in: &str, out: &str, aes: &str, des: &str) {
     exe_file_or_dir(r#in, || file_cae(r#in, out, aes, des), || dir_cae(r#in, out, aes, des))
 }
 
-fn decrypt_and_decompress(r#in: &str, aes: &str, des: &str) -> Vec<u8> {
+fn decrypt_and_decompress(r#in: &str, aes: &str, des: &str, func: impl FnOnce(Vec<u8>)) {
     aes.padding(32).as_bytes().let_owned(|aes_key|
     des.padding(24).as_bytes().let_owned(|des_key|
         des_dec(des_key)(&fs::read(r#in).unwrap())
             .let_owned(|ctx| (vec![], aes_dec(aes_key)(&ctx)))
     ))
     .also_mut(|(vec, data)| XzDecoder::new(data.as_slice()).read_to_end(vec).unwrap()).0
+    .let_owned(func)
 }
 
 pub fn file_dad(r#in: &str, out: &str, aes: &str, des: &str) {
-    decrypt_and_decompress(r#in, aes, des)
-        .let_owned(|byt| fs::write(out, byt).unwrap())
+    decrypt_and_decompress(r#in, aes, des, |byt| fs::write(out, byt).unwrap())
 }
 
 pub fn dir_dad(r#in: &str, out: &str, aes: &str, des: &str) {
-    decrypt_and_decompress(r#in, aes, des)
-        .let_owned(|byt| Archive::new(byt.as_slice()).unpack(out).unwrap());
+    decrypt_and_decompress(r#in, aes, des, |byt| Archive::new(byt.as_slice()).unpack(out).unwrap())
 }
