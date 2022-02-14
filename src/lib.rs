@@ -38,10 +38,11 @@ pub fn compress_and_encrypt(r#in: &str, aes: &str, des: &str) {
     )
 }
 
-fn judge_file_or_dir(last: u8, f1: impl FnOnce(), f2: impl FnOnce()) {
+fn judge_file_or_dir(last: u8, byt: Vec<u8>, f1: impl FnOnce(&mut Archive<&[u8]>), f2: impl FnOnce(&mut Archive<&[u8]>)) {
+    let tar = &mut Archive::new(byt.as_slice());
     match last {
-        0 => f1(),
-        1 => f2(),
+        0 => f1(tar),
+        1 => f2(tar),
         _ => panic!("file type error")
     }
 }
@@ -55,12 +56,12 @@ pub fn decrypt_and_decompress(r#in: &str, aes: &str, des: &str) {
             .let_owned(|ctx| (vec![], aes_dec(aes)(&ctx)))
     )
     .also_mut(|(vec, data)| XzDecoder::new(data.as_slice()).read_to_end(vec).unwrap()).0
-    .let_owned(|byt| r#in.trim_end_matches(".tla").let_owned(|name| 
-        judge_file_or_dir(last, || Archive::new(byt.as_slice()).unpack(name).unwrap(),
-            || Archive::new(byt.as_slice()).entries().unwrap().for_each(|file| {
+    .let_owned(|byt| r#in.trim_end_matches(".tla").let_owned(|name| {
+        judge_file_or_dir(last, byt, |tar| tar.unpack(name).unwrap(),
+            |tar| tar.entries().unwrap().for_each(|file| {
                 file.unwrap()
                     .unpack(name).unwrap();
             })
         )
-    ))
+    }))
 }
