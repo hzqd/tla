@@ -6,60 +6,61 @@ use ades::{Padding, aes_enc, aes_dec, des_enc, des_dec};
 
 pub mod cli;
 
-fn file_cae(r#in: &str, aes: &str, des: &str) {
-    let compressed = (vec![], fs::read(r#in).unwrap())
-        .also_mut(|(vec, data)| XzEncoder::new(data.as_slice(), 9).read_to_end(vec).unwrap()).0;
-
+fn padding<R>(aes: &str, des: &str, f: impl FnOnce(&[u8], &[u8]) -> R) -> R {
     aes.padding(32).as_bytes().let_owned(|aes_key|
     des.padding(24).as_bytes().let_owned(|des_key|
-        aes_enc(aes_key)(&compressed)
-            .let_owned(|ctx| des_enc(des_key)(&ctx))
-            .let_owned(|byt| fs::write(format!("{in}.ftla"), byt).unwrap())
+        f(aes_key, des_key)
     ))
 }
 
-fn dir_cae(r#in: &str, aes: &str, des: &str) {
-    let compressed = Builder::new(vec![])
-        .also_mut(|b| b.append_dir_all("", r#in).unwrap())
-        .let_owned(|b| (vec![], b.into_inner().unwrap()))
-        .also_mut(|(vec, data)| XzEncoder::new(data.as_slice(), 9).read_to_end(vec).unwrap()).0;
-
-    aes.padding(32).as_bytes().let_owned(|aes_key|
-    des.padding(24).as_bytes().let_owned(|des_key|
-        aes_enc(aes_key)(&compressed)
-            .let_owned(|ctx| des_enc(des_key)(&ctx))
-            .let_owned(|byt| fs::write(format!("{in}.dtla"), byt).unwrap())
-    ))
-}
-
-fn exe_file_or_dir(r#in: &str, f1: impl FnOnce(), f2: impl FnOnce()) {
-    if fs::metadata(r#in).unwrap().is_file() {
-        f1()
-    } else if fs::metadata(r#in).unwrap().is_dir() {
-        f2()
+fn mark_file_or_dir(r#in: &str, vec: &mut Vec<u8>) {
+    let meta = fs::metadata(r#in).unwrap();
+    if meta.is_dir() {
+        vec.push(0)
+    } else if meta.is_file() {
+        vec.push(1)
     } else {
         panic!("unsupported file type")
     }
 }
 
 pub fn compress_and_encrypt(r#in: &str, aes: &str, des: &str) {
-    exe_file_or_dir(r#in, || file_cae(r#in, aes, des), || dir_cae(r#in, aes, des))
+    let compressed = Builder::new(vec![])
+        .also_mut(|b| b.append_dir_all("", r#in).unwrap_or_else(|_| b.append_path(r#in).unwrap()))
+        .let_owned(|b| (vec![], b.into_inner().unwrap()))
+        .also_mut(|(vec, data)| XzEncoder::new(data.as_slice(), 9).read_to_end(vec).unwrap()).0;
+
+    padding(aes, des, |aes, des|
+        aes_enc(aes)(&compressed)
+            .let_owned(|ctx| des_enc(des)(&ctx))
+            .also_mut(|vec| mark_file_or_dir(r#in, vec)) // 0: dir, 1: file
+            .let_owned(|byt| fs::write(format!("{in}.tla"), byt).unwrap())
+    )
 }
 
-fn decrypt_and_decompress(r#in: &str, aes: &str, des: &str, func: impl FnOnce(Vec<u8>)) {
-    aes.padding(32).as_bytes().let_owned(|aes_key|
-    des.padding(24).as_bytes().let_owned(|des_key|
-        des_dec(des_key)(&fs::read(r#in).unwrap())
-            .let_owned(|ctx| (vec![], aes_dec(aes_key)(&ctx)))
-    ))
+fn judge_file_or_dir(last: u8, f1: impl FnOnce(), f2: impl FnOnce()) {
+    match last {
+        0 => f1(),
+        1 => f2(),
+        _ => panic!("file type error")
+    }
+}
+
+pub fn decrypt_and_decompress(r#in: &str, aes: &str, des: &str) {
+    let mut read = fs::read(r#in).unwrap();
+    let last = read.pop().unwrap();
+    
+    padding(aes, des, |aes, des|
+        des_dec(des)(&read)
+            .let_owned(|ctx| (vec![], aes_dec(aes)(&ctx)))
+    )
     .also_mut(|(vec, data)| XzDecoder::new(data.as_slice()).read_to_end(vec).unwrap()).0
-    .let_owned(func)
-}
-
-pub fn file_dad(r#in: &str, aes: &str, des: &str) {
-    decrypt_and_decompress(r#in, aes, des, |byt| fs::write(r#in.trim_end_matches(".ftla"), byt).unwrap())
-}
-
-pub fn dir_dad(r#in: &str, aes: &str, des: &str) {
-    decrypt_and_decompress(r#in, aes, des, |byt| Archive::new(byt.as_slice()).unpack(r#in.trim_end_matches(".dtla")).unwrap())
+    .let_owned(|byt| r#in.trim_end_matches(".tla").let_owned(|name| 
+        judge_file_or_dir(last, || Archive::new(byt.as_slice()).unpack(name).unwrap(),
+            || Archive::new(byt.as_slice()).entries().unwrap().for_each(|file| {
+                file.unwrap()
+                    .unpack(name).unwrap();
+            })
+        )
+    ))
 }
