@@ -30,12 +30,10 @@ pub fn compress_and_encrypt(r#in: &str, aes: &str, des: &str) {
         .let_owned(|b| (vec![], b.into_inner().unwrap()))
         .also_mut(|(vec, data)| XzEncoder::new(data.as_slice(), 9).read_to_end(vec).unwrap()).0;
 
-    padding(aes, des, |aes, des|
-        aes_enc(aes)(&compressed)
-            .let_owned(|ctx| des_enc(des)(&ctx))
-            .also_mut(|vec| mark_file_or_dir(r#in, vec)) // 0: dir, 1: file
-            .let_owned(|byt| fs::write(format!("{in}.tla"), byt).unwrap())
-    )
+    padding(aes, des, |aes, des| aes_enc(aes)(&compressed)
+        .let_owned(|ctx| des_enc(des)(&ctx)))
+    .also_mut(|vec| mark_file_or_dir(r#in, vec)) // 0: dir, 1: file
+    .let_owned(|byt| fs::write(format!("{in}.tla"), byt).unwrap())
 }
 
 fn judge_file_or_dir(last: u8, byt: Vec<u8>, f1: impl FnOnce(&mut Archive<&[u8]>), f2: impl FnOnce(&mut Archive<&[u8]>)) {
@@ -51,17 +49,15 @@ pub fn decrypt_and_decompress(r#in: &str, aes: &str, des: &str) {
     let mut read = fs::read(r#in).unwrap();
     let last = read.pop().unwrap();
     
-    padding(aes, des, |aes, des|
-        des_dec(des)(&read)
-            .let_owned(|ctx| (vec![], aes_dec(aes)(&ctx)))
-    )
+    padding(aes, des, |aes, des| des_dec(des)(&read)
+        .let_owned(|ctx| (vec![], aes_dec(aes)(&ctx))))
     .also_mut(|(vec, data)| XzDecoder::new(data.as_slice()).read_to_end(vec).unwrap()).0
-    .let_owned(|byt| r#in.trim_end_matches(".tla").let_owned(|name| {
+    .let_owned(|byt| r#in.trim_end_matches(".tla").let_owned(|name|
         judge_file_or_dir(last, byt, |tar| tar.unpack(name).unwrap(),
             |tar| tar.entries().unwrap().for_each(|file| {
                 file.unwrap()
                     .unpack(name).unwrap();
             })
         )
-    }))
+    ))
 }
