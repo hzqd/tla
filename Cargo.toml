@@ -1,6 +1,6 @@
 [package]
 name = "tla"
-version = "0.1.4"
+version = "0.1.5"
 description = "A CLI tool for compressing and encrypting a file or directory. (tar, lzma, aes & des)"
 license = "MIT OR Apache-2.0"
 edition = "2021"
@@ -11,8 +11,11 @@ edition = "2021"
 version = "3"
 features = ["derive"]
 
+[dependencies.aoko]
+version = "0.3.0-alpha.1"
+features = ["paral"]
+
 [dependencies]
 tar = "0.4"
 xz2 = "0.1"
 ades = "0.1"
-aoko = "0.2"
