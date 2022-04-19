@@ -4,10 +4,10 @@ use clap::Parser;
 /// A CLI tool for compressing and encrypting a file or directory. (tar, lzma, aes & des)
 
 #[derive(Parser)]
-#[clap(version = "0.1.5", author = "hzqd <hzqelf@yeah.net>")]
+#[clap(version = "0.1.6", author = "hzqd <hzqelf@yeah.net>")]
 pub struct Args {
     /// Specify the input file name
-    #[clap(short, long)]
+    #[clap()]
     pub input: String,
 
     /// Specify the AES key
