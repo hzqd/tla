@@ -1,12 +1,13 @@
-use std::{fs, io::Read};
+use std::fs;
 use aoko::no_std::pipelines::{pipe::Pipe, tap::Tap};
 use caesar::Caesar;
-use xz2::read::{XzEncoder, XzDecoder};
+use multi::{mt_enc, mt_dec};
 use tar::{Builder, Archive};
 use ades::{Padding, aes_enc, aes_dec, des_enc, des_dec};
 
 pub mod cli;
 pub mod caesar;
+pub mod multi;
 
 fn padding<R>(aes: &str, des: &str, f: impl FnOnce(&[u8], &[u8]) -> R) -> R {
     aes.padding(32).as_bytes().pipe(|aes_key|
@@ -29,8 +30,8 @@ fn mark_file_or_dir(r#in: &str, vec: &mut Vec<u8>) {
 pub fn compress_and_encrypt(r#in: &str, aes: &str, des: &str) {
     let compressed = Builder::new(vec![])
         .tap_mut(|b| b.append_dir_all("", r#in).unwrap_or_else(|_| b.append_path(r#in).unwrap()))
-        .pipe(|b| (vec![], b.into_inner().unwrap()))
-        .tap_mut(|(vec, data)| XzEncoder::new(data.as_slice(), 9).read_to_end(vec).unwrap()).0
+        .pipe(|b| b.into_inner().unwrap())
+        .pipe_ref(|data| mt_enc(data))
         .cs_enc(175);
 
     padding(aes, des, |aes, des| aes_enc(aes)(&compressed)
@@ -53,8 +54,8 @@ pub fn decrypt_and_decompress(r#in: &str, aes: &str, des: &str) {
     let last = read.pop().unwrap();
     
     padding(aes, des, |aes, des| des_dec(des)(&read)
-        .pipe(|ctx| (vec![], aes_dec(aes)(&ctx).cs_dec(175))))
-    .tap_mut(|(vec, data)| XzDecoder::new(data.as_slice()).read_to_end(vec).unwrap()).0
+        .pipe(|ctx| aes_dec(aes)(&ctx).cs_dec(175)))
+    .pipe_ref(|data| mt_dec(data))
     .pipe(|byt| r#in.trim_end_matches(".tla").pipe(|name|
         judge_file_or_dir(last, byt, |tar| tar.unpack(name).unwrap(),
             |tar| tar.entries().unwrap().for_each(|file| {
