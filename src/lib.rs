@@ -2,6 +2,7 @@ use std::fs;
 use aoko::no_std::pipelines::{pipe::Pipe, tap::Tap};
 use caesar::Caesar;
 use multi::{mt_enc, mt_dec};
+use rayon::{slice::ParallelSlice, prelude::ParallelIterator};
 use tar::{Builder, Archive};
 use ades::{Padding, aes_enc, aes_dec, des_enc, des_dec};
 
@@ -27,17 +28,19 @@ fn mark_file_or_dir(r#in: &str, vec: &mut Vec<u8>) {
     }
 }
 
+const GROUP: usize = 1024 * 1024 * 1024;
+
 pub fn compress_and_encrypt(r#in: &str, aes: &str, des: &str) {
-    let compressed = Builder::new(vec![])
+    Builder::new(vec![])
         .tap_mut(|b| b.append_dir_all("", r#in).unwrap_or_else(|_| b.append_path(r#in).unwrap()))
         .pipe(|b| b.into_inner().unwrap())
         .pipe_ref(|data| mt_enc(data))
-        .cs_enc(175);
-
-    padding(aes, des, |aes, des| aes_enc(aes)(&compressed)
-        .pipe(|ctx| des_enc(des)(&ctx)))
-    .tap_mut(|vec| mark_file_or_dir(r#in, vec)) // 0: dir, 1: file
-    .pipe(|byt| fs::write(format!("{in}.tla"), byt.cs_enc(23)).unwrap())
+        .cs_enc(175)
+        .par_chunks(GROUP)
+        .flat_map(|slice| padding(aes, des, |aes, des| aes_enc(aes)(slice).pipe(|ctx| des_enc(des)(&ctx))))
+        .collect::<Vec<_>>()
+        .tap_mut(|vec| mark_file_or_dir(r#in, vec)) // 0: dir, 1: file
+        .pipe(|byt| fs::write(format!("{in}.tla"), byt.cs_enc(23)).unwrap())
 }
 
 fn judge_file_or_dir(last: u8, byt: Vec<u8>, f1: impl FnOnce(&mut Archive<&[u8]>), f2: impl FnOnce(&mut Archive<&[u8]>)) {
@@ -53,15 +56,17 @@ pub fn decrypt_and_decompress(r#in: &str, aes: &str, des: &str) {
     let mut read = fs::read(r#in).unwrap().cs_dec(23);
     let last = read.pop().unwrap();
     
-    padding(aes, des, |aes, des| des_dec(des)(&read)
-        .pipe(|ctx| aes_dec(aes)(&ctx).cs_dec(175)))
-    .pipe_ref(|data| mt_dec(data))
-    .pipe(|byt| r#in.trim_end_matches(".tla").pipe(|name|
-        judge_file_or_dir(last, byt, |tar| tar.unpack(name).unwrap(),
-            |tar| tar.entries().unwrap().for_each(|file| {
-                file.unwrap()
-                    .unpack(name).unwrap();
-            })
-        )
-    ))
+    read.par_chunks(GROUP)
+        .flat_map(|slice| padding(aes, des, |aes, des| des_dec(des)(slice).pipe(|ctx| aes_dec(aes)(&ctx))))
+        .collect::<Vec<_>>()
+        .cs_dec(175)
+        .pipe_ref(|data| mt_dec(data))
+        .pipe(|byt| r#in.trim_end_matches(".tla").pipe(|name|
+            judge_file_or_dir(last, byt, |tar| tar.unpack(name).unwrap(),
+                |tar| tar.entries().unwrap().for_each(|file| {
+                    file.unwrap()
+                        .unpack(name).unwrap();
+                })
+            )
+        ))
 }

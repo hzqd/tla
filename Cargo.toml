@@ -1,14 +1,16 @@
 [package]
 name = "tla"
-version = "0.1.8"
+version = "0.1.9"
 description = "A CLI tool for compressing and encrypting a file or directory. (tar, lzma, aes & des)"
+authors = ["hzqd <hzqelf@yeah.net>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
+repository = "https://github.com/hzqd/tla"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies.clap]
-version = "3"
+version = "4"
 features = ["derive"]
 
 [dependencies.aoko]
