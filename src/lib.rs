@@ -28,7 +28,7 @@ fn mark_file_or_dir(r#in: &str, vec: &mut Vec<u8>) {
     }
 }
 
-const GROUP: usize = 1024 * 1024 * 1024;
+const GROUP: usize = 2 * 1024 * 1024 * 1024 - 1;
 
 pub fn compress_and_encrypt(r#in: &str, aes: &str, des: &str) {
     Builder::new(vec![])
