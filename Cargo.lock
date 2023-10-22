@@ -584,7 +584,7 @@ checksum = "222a222a5bfe1bba4a77b45ec488a741b3cb8872e5e499451fd7d0129c9c7c3d"
 
 [[package]]
 name = "tla"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "ades",
  "aoko 0.3.0-alpha.17",
