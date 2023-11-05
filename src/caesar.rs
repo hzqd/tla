@@ -1,4 +1,4 @@
-use aoko::standard::parallelisms::par_vec_ext::StdVecExt1;
+use aoko::standard::parallelisms::par_vec_ext::ParMutExt;
 
 pub trait Caesar {
     fn cs_enc(self, n: u8) -> Self;
