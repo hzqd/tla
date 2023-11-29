@@ -1,8 +1,11 @@
+use ades::{
+    aes_dec as aes_decrypt, aes_enc as aes_encrypt, des_dec as des_decrypt, des_enc as des_encrypt,
+    Padding,
+};
+use aoko::{no_std::pipelines::pipe::Pipe, standard::parallelisms::par_vec_ext::ParMutExt};
+use rayon::{prelude::ParallelIterator, slice::ParallelSlice};
+use rsa::{Pkcs1v15Encrypt, RsaPrivateKey};
 use std::fs;
-use ades::{des_enc as des_encrypt, des_dec as des_decrypt, aes_enc as aes_encrypt, aes_dec as aes_decrypt, Padding};
-use aoko::{standard::parallelisms::par_vec_ext::ParMutExt, no_std::pipelines::pipe::Pipe};
-use rayon::{slice::ParallelSlice, prelude::ParallelIterator};
-use rsa::{RsaPrivateKey, Pkcs1v15Encrypt};
 
 pub trait Caesar {
     fn cs_enc(self, n: u8) -> Self;
@@ -20,17 +23,22 @@ impl Caesar for Vec<u8> {
 
 const GROUP: usize = 2 * 1024 * 1024 * 1024 - 1;
 
-fn crypto<'a, F>(padded: &'a str, r#in: &[u8], f: impl FnOnce(&'a [u8]) -> F) -> Vec<u8> where F: Sync + Send + Fn(&[u8]) -> Vec<u8> {
-    padded.as_bytes().pipe(f).pipe(|any_crypt| r#in.par_chunks(GROUP).flat_map(any_crypt)).collect()
+fn crypto<'a, F>(padded: &'a str, r#in: &[u8], f: impl FnOnce(&'a [u8]) -> F) -> Vec<u8>
+where
+    F: Sync + Send + Fn(&[u8]) -> Vec<u8>,
+{
+    padded
+        .as_bytes()
+        .pipe(f)
+        .pipe(|any_crypt| r#in.par_chunks(GROUP).flat_map(any_crypt))
+        .collect()
 }
 
 macro_rules! crypt {
-    ($key:expr, $pad:expr, $in:expr, $fn:expr) => {
-        {
-            let padded = &$key.padding($pad);
-            crypto(padded, $in, $fn)
-        }
-    };
+    ($key:expr, $pad:expr, $in:expr, $fn:expr) => {{
+        let padded = &$key.padding($pad);
+        crypto(padded, $in, $fn)
+    }};
 }
 
 macro_rules! gen_crypt {
@@ -46,8 +54,11 @@ gen_crypt! {
 }
 
 fn get_rsa_key(path: &str) -> RsaPrivateKey {
-    fs::read(path).unwrap().as_slice()
-        .pipe(serde_json::from_slice).unwrap()
+    fs::read(path)
+        .unwrap()
+        .as_slice()
+        .pipe(serde_json::from_slice)
+        .unwrap()
 }
 
 pub trait RSA {
@@ -57,7 +68,10 @@ pub trait RSA {
 
 impl RSA for &[u8] {
     fn rsa_enc(self, path: &str) -> Vec<u8> {
-        get_rsa_key(path).to_public_key().encrypt(&mut rand::thread_rng(), Pkcs1v15Encrypt, self).unwrap()
+        get_rsa_key(path)
+            .to_public_key()
+            .encrypt(&mut rand::thread_rng(), Pkcs1v15Encrypt, self)
+            .unwrap()
     }
 
     fn rsa_dec(self, path: &str) -> Vec<u8> {

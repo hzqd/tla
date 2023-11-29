@@ -1,6 +1,6 @@
 [package]
 name = "tla"
-version = "0.2.0"
+version = "0.2.1"
 description = "A CLI tool for compressing and encrypting a file or a directory. (tar, lzma, aes & des & rsa)"
 authors = ["hzqd <hzqelf@yeah.net>"]
 license = "MIT OR Apache-2.0"

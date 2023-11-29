@@ -4,7 +4,7 @@ use clap::Parser;
 /// A CLI tool for compressing and encrypting a file or directory. (tar, lzma, aes & des)
 
 #[derive(Parser)]
-#[clap(version = "0.2.0", author = "hzqd <hzqelf@yeah.net>")]
+#[clap(version = "0.2.1", author = "hzqd <hzqelf@yeah.net>")]
 pub struct Args {
     /// Specify the input file name
     #[clap()]
@@ -49,7 +49,7 @@ pub enum Compress {
 pub struct Tar {
     /// Use it to tar (and encrypt), omit it to unpack (and decrypt)
     #[clap(short, long)]
-    pub tar: bool
+    pub tar: bool,
 }
 
 pub fn get_args() -> Args {
