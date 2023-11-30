@@ -23,7 +23,7 @@ impl Caesar for Vec<u8> {
 
 const GROUP: usize = 2 * 1024 * 1024 * 1024 - 1;
 
-fn crypto<'a, F>(padded: &'a str, r#in: &[u8], f: impl FnOnce(&'a [u8]) -> F) -> Vec<u8>
+fn crypt<'a, F>(padded: &'a str, r#in: &[u8], f: impl FnOnce(&'a [u8]) -> F) -> Vec<u8>
 where
     F: Sync + Send + Fn(&[u8]) -> Vec<u8>,
 {
@@ -35,20 +35,13 @@ where
 }
 
 macro_rules! crypt {
-    ($key:expr, $pad:expr, $in:expr, $fn:expr) => {{
-        let padded = &$key.padding($pad);
-        crypto(padded, $in, $fn)
-    }};
-}
-
-macro_rules! gen_crypt {
     ($($name:ident $fn:ident $pad:expr)*) => {
         trait Crypt { $( fn $name(self, key: &str) -> Vec<u8>; )* }
-        impl Crypt for &[u8] { $( fn $name(self, key: &str) -> Vec<u8> { crypt!(key, $pad, self, $fn) } )* }
+        impl Crypt for &[u8] { $( fn $name(self, key: &str) -> Vec<u8> { crypt(&key.padding($pad), self, $fn) } )* }
     };
 }
 
-gen_crypt! {
+crypt! {
     des_enc des_encrypt 24      des_dec des_decrypt 24
     aes_enc aes_encrypt 32      aes_dec aes_decrypt 32
 }
